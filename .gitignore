@@ -1,0 +1,10 @@
+*.exe
+*.dll
+*.lib
+*.obj
+*.pdb
+*.zip
+/Status.txt
+/dist/
+/.zig-cache/
+/.zig-global-cache/

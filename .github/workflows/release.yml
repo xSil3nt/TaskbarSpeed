@@ -1,0 +1,52 @@
+name: Build release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and verify Zig
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz -o "$RUNNER_TEMP/zig.tar.xz"
+          echo 'd45312e61ebcc48032b77bc4cf7fd6915c11fa16e4aad116b66c9468211230ea '"$RUNNER_TEMP/zig.tar.xz" | sha256sum --check
+          tar -xf "$RUNNER_TEMP/zig.tar.xz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/zig-linux-x86_64-0.13.0" >> "$GITHUB_PATH"
+      - name: Compile
+        shell: bash
+        run: |
+          mkdir -p dist/TaskbarSpeed
+          vendor=source/vendor/minhook
+          zig cc -target x86_64-windows-gnu -std=c11 -Os -Wall -Wextra -Werror -shared -s -I "$vendor/include" -I source source/hook.c "$vendor/src/buffer.c" "$vendor/src/hook.c" "$vendor/src/trampoline.c" "$vendor/src/hde/hde64.c" -luser32 -o dist/TaskbarSpeed/TaskbarSpeedHook.dll
+          zig cc -target x86_64-windows-gnu -std=c11 -Os -Wall -Wextra -Werror -municode -Wl,--subsystem,windows -s source/launcher.c -lbcrypt -ladvapi32 -luser32 -o dist/TaskbarSpeed/TaskbarSpeed.exe
+      - name: Package
+        shell: bash
+        run: |
+          cp TaskbarSpeed.ini Setup.cmd Apply.cmd Status.cmd Undo.cmd EnableStartup.cmd README.txt LICENSE.txt dist/TaskbarSpeed/
+          cp source/vendor/minhook/LICENSE.txt dist/TaskbarSpeed/LICENSE-MINHOOK.txt
+          rm -f dist/TaskbarSpeed/*.lib
+          cd dist
+          zip -r TaskbarSpeed-win11-24H2-x64.zip TaskbarSpeed
+          sha256sum TaskbarSpeed-win11-24H2-x64.zip > SHA256SUMS.txt
+      - name: Save build
+        uses: actions/upload-artifact@v4
+        with:
+          name: TaskbarSpeed-windows-x64
+          path: |
+            dist/TaskbarSpeed-win11-24H2-x64.zip
+            dist/SHA256SUMS.txt
+      - name: Create draft release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/TaskbarSpeed-win11-24H2-x64.zip dist/SHA256SUMS.txt --verify-tag --draft --title "TaskbarSpeed $GITHUB_REF_NAME" --notes-file RELEASE_NOTES.md
