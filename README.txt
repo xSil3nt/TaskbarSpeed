@@ -1,8 +1,13 @@
 TaskbarSpeed
 
 1. Turn on "Automatically hide the taskbar" in Windows taskbar settings.
-2. Keep this extracted folder somewhere permanent.
-3. Double-click Setup.cmd. It applies the tweak and enables it at sign-in.
+2. Extract the downloaded ZIP.
+3. Double-click Setup.cmd. It installs in %USERPROFILE%\TaskbarSpeed,
+   applies the tweak, and enables it at sign-in. No admin access needed.
+
+Find TaskbarSpeed in Start to open its settings and controls.
+You can delete the downloaded ZIP and extracted folder after setup.
+Setup preserves existing speed settings.
 
 Show and hide animations: 500% speed.
 Wait before hiding: 250% speed (normally 500 ms becomes 200 ms).
@@ -17,7 +22,7 @@ Requires matching x64 Windows 11 24H2 taskbar files from build 26100.9550.
 If the files differ, it stops. Windows updates may require a new build.
 
 The launcher exits after applying. A small DLL stays inside Explorer.
-No Windhawk, Visual Studio, installer, or runtime downloads needed.
+No Windhawk, Visual Studio, or extra downloads needed. Setup uses Windows PowerShell.
 
 Source and license: https://github.com/xSil3nt/TaskbarSpeed
 GPL-3.0-or-later. MinHook's BSD license is included in LICENSE-MINHOOK.txt.

@@ -5,19 +5,21 @@ Faster Windows 11 auto-hide animations. Show and hide run at 500% speed. The wai
 ## Set up
 
 1. Turn on **Automatically hide the taskbar** in Windows taskbar settings.
-2. Download the ZIP from [Releases](https://github.com/xSil3nt/TaskbarSpeed/releases/latest) and extract it somewhere you will keep it.
-3. Double-click **Setup.cmd**. It applies the tweak and enables it at sign-in.
+2. Download the ZIP from [Releases](https://github.com/xSil3nt/TaskbarSpeed/releases/latest) and extract it.
+3. Double-click **Setup.cmd**. It installs in `%USERPROFILE%\TaskbarSpeed`, applies the tweak, and enables it at sign-in.
 
-No Windhawk, Visual Studio, or installer needed. The launcher exits after applying; a small DLL stays inside Explorer.
+Find **TaskbarSpeed** in Start to open its folder. You can delete the downloaded ZIP and extracted folder after setup. No admin access needed. Setup preserves existing speed settings.
+
+No Windhawk, Visual Studio, or extra downloads needed. Setup uses Windows PowerShell. The launcher exits after applying; a small DLL stays inside Explorer.
 
 **Compatibility:** this release targets x64 Windows 11 24H2, build 26100.9550. It checks the taskbar files and stops if they differ. Windows updates may require a new build.
 
 ## Change or remove
 
-- Edit **TaskbarSpeed.ini**, then run **Apply.cmd**. `100` means normal speed; values up to `1000` are supported.
+- Open **TaskbarSpeed** from Start, edit **TaskbarSpeed.ini**, then run **Apply.cmd**. `100` means normal speed; values up to `1000` are supported.
 - Run **Status.cmd** to check settings and timing.
 - If Explorer restarts, run **Apply.cmd** again.
-- Run **Undo.cmd** to disable the tweak and remove startup. Sign out before deleting the folder.
+- Run **Undo.cmd** to disable the tweak and remove startup. Sign out before deleting `%USERPROFILE%\TaskbarSpeed`. You can also delete the TaskbarSpeed shortcut from Start.
 
 ## Source
 

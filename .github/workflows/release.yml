@@ -31,7 +31,7 @@ jobs:
       - name: Package
         shell: bash
         run: |
-          cp TaskbarSpeed.ini Setup.cmd Apply.cmd Status.cmd Undo.cmd EnableStartup.cmd README.txt LICENSE.txt dist/TaskbarSpeed/
+          cp TaskbarSpeed.ini Setup.cmd Install.ps1 Apply.cmd Status.cmd Undo.cmd EnableStartup.cmd README.txt LICENSE.txt dist/TaskbarSpeed/
           cp source/vendor/minhook/LICENSE.txt dist/TaskbarSpeed/LICENSE-MINHOOK.txt
           rm -f dist/TaskbarSpeed/*.lib
           cd dist
