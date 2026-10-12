@@ -14,6 +14,12 @@ No Windhawk, Visual Studio, or extra downloads needed. Setup uses Windows PowerS
 
 **Compatibility:** this release targets x64 Windows 11 24H2, build 26100.9550. It checks the taskbar files and stops if they differ. Windows updates may require a new build.
 
+## Startup
+
+Setup adds a shortcut to your Windows Startup folder. Enable or disable **TaskbarSpeed** in **Task Manager > Startup apps**. The launcher waits for Explorer, retries temporary startup failures, and exits.
+
+To upgrade from an older release: run **Undo.cmd** in the installed folder, sign out, then run the new **Setup.cmd**.
+
 ## Change or remove
 
 - Open **TaskbarSpeed** from Start, edit **TaskbarSpeed.ini**, then run **Apply.cmd**. `100` means normal speed; values up to `1000` are supported.

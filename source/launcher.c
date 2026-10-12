@@ -1,7 +1,9 @@
 /* Standalone TaskbarSpeed launcher. GPL-3.0-or-later. */
 #define UNICODE
 #define _UNICODE
+#define COBJMACROS
 #include <windows.h>
+#include <shlobj.h>
 #include <tlhelp32.h>
 #include <bcrypt.h>
 #include <stdio.h>
@@ -12,7 +14,7 @@
 
 static wchar_t message[2048], exePath[MAX_PATH], dllPath[MAX_PATH], iniPath[MAX_PATH], logPath[MAX_PATH];
 static BOOL quiet;
-static void failure(const wchar_t *what,DWORD error) { swprintf(message,2048,L"%ls (error %lu). No startup entry was added.\nSee README.txt for recovery instructions.",what,error); }
+static void failure(const wchar_t *what,DWORD error) { swprintf(message,2048,L"%ls (error %lu).\nSee README.txt for recovery instructions.",what,error); }
 static BOOL samePath(const wchar_t *a,const wchar_t *b) { return _wcsicmp(a,b)==0; }
 static BOOL module(DWORD pid,const wchar_t *name,MODULEENTRY32W *entry) {
     HANDLE snap=INVALID_HANDLE_VALUE;
@@ -56,13 +58,42 @@ static BOOL runThread(HANDLE process,void *function,void *arg,DWORD *result) {
     return ok;
 }
 static BOOL startup(BOOL add) {
-    HKEY key; LONG result=RegCreateKeyExW(HKEY_CURRENT_USER,L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",0,NULL,0,KEY_SET_VALUE,NULL,&key,NULL);
-    if (result!=ERROR_SUCCESS) { failure(L"Could not access startup settings",result); return FALSE; }
-    if (add) { wchar_t command[MAX_PATH+40]; swprintf(command,MAX_PATH+40,L"\"%ls\" /apply /quiet /wait",exePath); result=RegSetValueExW(key,L"TaskbarSpeed",0,REG_SZ,(BYTE*)command,(DWORD)((wcslen(command)+1)*sizeof(wchar_t))); }
-    else { result=RegDeleteValueW(key,L"TaskbarSpeed"); if (result==ERROR_FILE_NOT_FOUND) result=ERROR_SUCCESS; }
-    RegCloseKey(key);
-    if (result!=ERROR_SUCCESS) { failure(L"Could not change startup settings",result); return FALSE; }
-    swprintf(message,2048,add?L"TaskbarSpeed will apply at sign-in and then exit.":L"TaskbarSpeed startup entry removed."); return TRUE;
+    wchar_t folder[MAX_PATH], path[MAX_PATH];
+    HRESULT hr=SHGetFolderPathW(NULL,CSIDL_STARTUP|CSIDL_FLAG_CREATE,NULL,SHGFP_TYPE_CURRENT,folder);
+    if (FAILED(hr)) { failure(L"Could not find your Startup folder",(DWORD)hr); return FALSE; }
+    if (wcslen(folder)+wcslen(L"\\TaskbarSpeed.lnk")>=MAX_PATH) { failure(L"Startup path is too long",ERROR_FILENAME_EXCED_RANGE); return FALSE; }
+    swprintf(path,MAX_PATH,L"%ls\\TaskbarSpeed.lnk",folder);
+    if (add) {
+        hr=CoInitializeEx(NULL,COINIT_APARTMENTTHREADED);
+        if (FAILED(hr)) { failure(L"Could not initialize shortcut creation",(DWORD)hr); return FALSE; }
+        IShellLinkW *link=NULL; IPersistFile *file=NULL;
+        hr=CoCreateInstance(&CLSID_ShellLink,NULL,CLSCTX_INPROC_SERVER,&IID_IShellLinkW,(void**)&link);
+        if (SUCCEEDED(hr)) hr=IShellLinkW_SetPath(link,exePath);
+        if (SUCCEEDED(hr)) hr=IShellLinkW_SetArguments(link,L"/apply /quiet /wait");
+        if (SUCCEEDED(hr)) hr=IShellLinkW_SetDescription(link,L"Apply TaskbarSpeed at sign-in");
+        if (SUCCEEDED(hr)) hr=IShellLinkW_QueryInterface(link,&IID_IPersistFile,(void**)&file);
+        if (SUCCEEDED(hr)) hr=IPersistFile_Save(file,path,TRUE);
+        if (file) IPersistFile_Release(file);
+        if (link) IShellLinkW_Release(link);
+        CoUninitialize();
+        if (FAILED(hr)) { failure(L"Could not save the startup shortcut",(DWORD)hr); return FALSE; }
+        /* Explicit setup/enable resets a previous Task Manager disable. Apply does not. */
+        HKEY approval;
+        if (RegOpenKeyExW(HKEY_CURRENT_USER,L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder",0,KEY_SET_VALUE,&approval)==ERROR_SUCCESS) {
+            RegDeleteValueW(approval,L"TaskbarSpeed.lnk"); RegCloseKey(approval);
+        }
+    } else if (!DeleteFileW(path) && GetLastError()!=ERROR_FILE_NOT_FOUND) {
+        failure(L"Could not remove the startup shortcut",GetLastError()); return FALSE;
+    }
+    /* Migrate the previous release without registering two login launches. */
+    HKEY key;
+    LONG result=RegOpenKeyExW(HKEY_CURRENT_USER,L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",0,KEY_SET_VALUE,&key);
+    if (result==ERROR_SUCCESS) {
+        result=RegDeleteValueW(key,L"TaskbarSpeed"); RegCloseKey(key);
+        if (result==ERROR_FILE_NOT_FOUND) result=ERROR_SUCCESS;
+    } else if (result==ERROR_FILE_NOT_FOUND) result=ERROR_SUCCESS;
+    if (result!=ERROR_SUCCESS) { failure(L"Could not remove the old registry startup entry",result); return FALSE; }
+    swprintf(message,2048,add?L"TaskbarSpeed will apply at sign-in and then exit. Manage it in Task Manager > Startup apps.":L"TaskbarSpeed startup entry removed."); return TRUE;
 }
 static int control(DWORD action) {
     HWND taskbar=FindWindowW(L"Shell_TrayWnd",NULL);
@@ -121,7 +152,7 @@ static int control(DWORD action) {
 }
 static BOOL waitForTaskbar(void) {
     DWORD previousPid=0, stable=0;
-    for (int i=0;i<40;i++) {
+    for (int i=0;i<120;i++) {
         HWND window=FindWindowW(L"Shell_TrayWnd",NULL);
         DWORD pid=0; GetWindowThreadProcessId(window,&pid);
         MODULEENTRY32W taskbar,view;
@@ -152,7 +183,16 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE previous,LPWSTR command,int sho
     else {
         DWORD action=wcsstr(command,L"/disable")?TBS_DISABLE:wcsstr(command,L"/status")?TBS_STATUS:TBS_APPLY;
         if (action==TBS_APPLY && wcsstr(command,L"/wait") && !waitForTaskbar()) result=1;
-        else result=control(action);
+        else {
+            result=control(action);
+            /* Explorer can replace its shell process during sign-in. Retry transient
+               initialization failures, but stop immediately on incompatible files. */
+            if (action==TBS_APPLY && wcsstr(command,L"/wait")) {
+                for (int attempt=0; result==1 && attempt<30; attempt++) {
+                    Sleep(2000); result=control(action);
+                }
+            }
+        }
     }
     FILE *log=_wfopen(logPath,L"wb");
     if (log) { char utf8[8192]; int bytes=WideCharToMultiByte(CP_UTF8,0,message,-1,utf8,sizeof(utf8),NULL,NULL); if (bytes>0) fwrite(utf8,1,bytes-1,log); fclose(log); }

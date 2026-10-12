@@ -9,6 +9,12 @@ Find TaskbarSpeed in Start to open its settings and controls.
 You can delete the downloaded ZIP and extracted folder after setup.
 Setup preserves existing speed settings.
 
+Manage TaskbarSpeed in Task Manager > Startup apps.
+Setup uses a Startup-folder shortcut and removes the old registry entry.
+The launcher waits for Explorer, retries temporary failures, and exits.
+
+To upgrade: run Undo.cmd, sign out, then run the new Setup.cmd.
+
 Show and hide animations: 500% speed.
 Wait before hiding: 250% speed (normally 500 ms becomes 200 ms).
 Other Windows animations and the wait before showing are unchanged.
