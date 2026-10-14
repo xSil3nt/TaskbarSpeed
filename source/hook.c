@@ -81,7 +81,7 @@ static void** WINAPI collapseHook(void *object,void *result) {
 }
 static void WINAPI slideHook(void *object,HWND window,const RECT *rect,HMONITOR monitor,BOOL show,BOOL animate) {
     if (!InterlockedCompareExchange(&enabled,0,0)) { originalSlide(object,window,rect,monitor,show,animate); return; }
-    /* Exact-build offsets verified in TrayUI::SlideWindow's machine code.
+    /* Field offsets matched in TrayUI::SlideWindow's machine code.
        Show reads this+0x16c; hide reads this+0x168. This avoids hooking
        timing APIs throughout Explorer and preserves the other animations. */
     volatile LONG *duration=(volatile LONG*)((BYTE*)object+(show?0x16c:0x168));
@@ -115,23 +115,59 @@ static UINT_PTR WINAPI timerHook(HWND window,UINT_PTR id,UINT delay,TIMERPROC ca
     }
     return originalSetTimer(window,id,delay,callback);
 }
-static BOOL validModule(HMODULE module,int index) {
-    if (!module) return FALSE;
+static DWORD moduleSize(HMODULE module) {
+    if (!module) return 0;
     IMAGE_DOS_HEADER *dos=(IMAGE_DOS_HEADER*)module;
-    if (dos->e_magic!=IMAGE_DOS_SIGNATURE) return FALSE;
+    if (dos->e_magic!=IMAGE_DOS_SIGNATURE || dos->e_lfanew<=0) return 0;
     IMAGE_NT_HEADERS *nt=(IMAGE_NT_HEADERS*)((BYTE*)module+dos->e_lfanew);
-    return nt->Signature==IMAGE_NT_SIGNATURE && nt->FileHeader.TimeDateStamp==MODULES[index].timestamp && nt->OptionalHeader.SizeOfImage==MODULES[index].imageSize;
+    return nt->Signature==IMAGE_NT_SIGNATURE ? nt->OptionalHeader.SizeOfImage : 0;
+}
+static BOOL codeMatches(HMODULE module,DWORD rva,const unsigned char *pattern,SIZE_T count) {
+    DWORD size=moduleSize(module);
+    if (!size || rva>=size || count>size-rva) return FALSE;
+    MEMORY_BASIC_INFORMATION info;
+    BYTE *address=(BYTE*)module+rva;
+    if (!VirtualQuery(address,&info,sizeof(info)) || info.State!=MEM_COMMIT || (info.Protect&(PAGE_GUARD|PAGE_NOACCESS))) return FALSE;
+    if (!(info.Protect&(PAGE_EXECUTE|PAGE_EXECUTE_READ|PAGE_EXECUTE_READWRITE|PAGE_EXECUTE_WRITECOPY))) return FALSE;
+    if (count>(SIZE_T)((BYTE*)info.BaseAddress+info.RegionSize-address)) return FALSE;
+    return memcmp(address,pattern,count)==0;
 }
 static void *target(const HookSpec *spec,HMODULE *modules) {
-    BYTE *address=(BYTE*)modules[spec->module]+spec->rva;
-    if (spec->rva+16>MODULES[spec->module].imageSize || memcmp(address,spec->signature,16)!=0) return NULL;
-    return address;
+    HMODULE module=modules[spec->module];
+    if (codeMatches(module,spec->rva,spec->signature,sizeof(spec->signature))) return (BYTE*)module+spec->rva;
+    return NULL;
+}
+static void *slideTarget(HMODULE module) {
+    DWORD size=moduleSize(module);
+    if (!size) return NULL;
+    IMAGE_DOS_HEADER *dos=(IMAGE_DOS_HEADER*)module;
+    IMAGE_NT_HEADERS *nt=(IMAGE_NT_HEADERS*)((BYTE*)module+dos->e_lfanew);
+    IMAGE_DATA_DIRECTORY directory=nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXCEPTION];
+    if (!directory.VirtualAddress || directory.VirtualAddress>=size || directory.Size>size-directory.VirtualAddress) return NULL;
+    RUNTIME_FUNCTION *functions=(RUNTIME_FUNCTION*)((BYTE*)module+directory.VirtualAddress);
+    /* Match function starts plus both duration-field reads, rather than a build ID.
+       Require exactly one match. The x64 unwind table bounds each search. */
+    static const unsigned char showRead[]={0x44,0x8b,0xb3,0x6c,0x01,0x00,0x00};
+    static const unsigned char hideRead[]={0x44,0x8b,0xb3,0x68,0x01,0x00,0x00};
+    void *found=NULL;
+    for (DWORD i=0;i<directory.Size/sizeof(*functions);i++) {
+        DWORD begin=functions[i].BeginAddress,end=functions[i].EndAddress;
+        if (end<=begin || end>size || !codeMatches(module,begin,HOOK_SLIDE.signature,sizeof(HOOK_SLIDE.signature))) continue;
+        DWORD limit=end-begin; if (limit>512) limit=512;
+        BOOL show=FALSE,hide=FALSE;
+        for (DWORD offset=0;offset+sizeof(showRead)<=limit;offset++) {
+            if (codeMatches(module,begin+offset,showRead,sizeof(showRead))) show=TRUE;
+            if (codeMatches(module,begin+offset,hideRead,sizeof(hideRead))) hide=TRUE;
+        }
+        if (show&&hide) { if (found) return NULL; found=(BYTE*)module+begin; }
+    }
+    return found;
 }
 static DWORD initialize(void) {
     HMODULE modules[2]={GetModuleHandleW(MODULES[0].name),GetModuleHandleW(MODULES[1].name)};
-    if (!validModule(modules[0],0)||!validModule(modules[1],1)) return 1001;
-    void *slide=target(&HOOK_SLIDE,modules),*show=target(&HOOK_EXPAND,modules),*hide=target(&HOOK_COLLAPSE,modules);
-    if (!slide||!show||!hide) return 1002;
+    if (!moduleSize(modules[0])) return 1001;
+    void *slide=slideTarget(modules[0]),*show=target(&HOOK_EXPAND,modules),*hide=target(&HOOK_COLLAPSE,modules);
+    if (!slide) return 1002;
     QueryPerformanceFrequency(&frequency);
     MH_STATUS status=MH_Initialize();
     if (status!=MH_OK) return 1100+(DWORD)status;
@@ -141,6 +177,7 @@ static DWORD initialize(void) {
     void *hooks[4]={(void*)slideHook,(void*)expandHook,(void*)collapseHook,(void*)timerHook};
     void **originals[4]={(void**)&originalSlide,(void**)&originalExpand,(void**)&originalCollapse,(void**)&originalSetTimer};
     for (int i=0;i<4;i++) {
+        if (!addresses[i]) continue;
         status=MH_CreateHook(addresses[i],hooks[i],originals[i]);
         if (status!=MH_OK) { MH_Uninitialize(); return 1200+(DWORD)status; }
     }

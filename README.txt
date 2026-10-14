@@ -24,8 +24,9 @@ Run Status.cmd to check settings and timing.
 If Explorer restarts, run Apply.cmd again.
 Run Undo.cmd to disable and remove startup. Sign out before deleting the folder.
 
-Requires matching x64 Windows 11 24H2 taskbar files from build 26100.9550.
-If the files differ, it stops. Windows updates may require a new build.
+For x64 Windows 11. No Windows version or file-hash restriction.
+Finds the legacy animation function by its code. If it cannot recognize
+the function, it leaves the taskbar unchanged. Other builds may not work.
 
 The launcher exits after applying. A small DLL stays inside Explorer.
 No Windhawk, Visual Studio, or extra downloads needed. Setup uses Windows PowerShell.

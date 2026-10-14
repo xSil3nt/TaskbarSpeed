@@ -1,3 +1,5 @@
+Removed Windows build, file-hash, timestamp, and image-size restrictions. Finds the legacy animation function by its code so minor Windows updates can work without a rebuild.
+
 Startup fix: setup now uses a Windows Startup-folder shortcut, managed in **Task Manager > Startup apps**, and removes the old registry entry. The launcher waits longer for Explorer and retries temporary initialization failures. It exits after applying.
 
 **Upgrading:** run **Undo.cmd** in the installed folder, sign out, then run the new **Setup.cmd**. Speed settings are kept.
@@ -8,6 +10,6 @@ Setup installs in `%USERPROFILE%\TaskbarSpeed`, applies the tweak, and enables s
 
 Show and hide animations: **500% speed**. Wait before hiding: **250% speed** (normally 500 ms becomes 200 ms). Existing speed settings are preserved.
 
-Requires matching x64 Windows 11 24H2 taskbar files from build 26100.9550. Different files are rejected. Windows updates may require a new build.
+For x64 Windows 11. No Windows version or file-hash restriction. The legacy animation function is found by its code, even if its address moves. Unrecognized code is left unchanged. Other builds may not work.
 
 Run **Undo.cmd** in the installed folder to disable and remove startup.

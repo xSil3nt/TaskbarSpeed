@@ -8,8 +8,8 @@ To build locally on Windows, download the portable Zig 0.13.0 compiler and run:
 powershell -NoProfile -File source\Build.ps1 -ZigPath C:\path\to\zig.exe
 ```
 
-This rebuilds for the Windows files specified in `source/config.h`. It does **not** add support for other Windows versions.
+There is no Windows build, file-hash, timestamp, or fixed image-size gate. The legacy hook scans function starts from the loaded module's x64 unwind table and requires a unique prologue match with both known duration-field reads. Its fields are still implementation details and may change in future Windows updates.
 
-The configuration contains module hashes, timestamps, sizes, symbol addresses, and function signatures. The legacy animation hook also uses two fields verified in this build's `TrayUI::SlideWindow` implementation. Supporting a new Windows build requires resolving its Microsoft symbols, checking the function layout, and updating those guards. Keep the checks in place.
+`source/config.h` contains function hints and signatures. Modern hooks use fixed address hints with code checks; if unavailable, the legacy animation and hide-delay hooks can still apply. No symbol downloads or background scanning are needed at login.
 
 Only the legacy animation path has been exercised on the original PC. The optional modern WinRT animation hooks are included but have not been verified on other machines. No system files are changed on disk.

@@ -1,9 +1,8 @@
-/* Generated from the exact Windows binaries inspected at build time. */
+/* Function hints and code signatures; no Windows build or file-hash gate. */
 #pragma once
-typedef struct { const wchar_t *name; DWORD timestamp, imageSize; const char *sha256; } ModuleSpec;
+typedef struct { const wchar_t *name; } ModuleSpec;
 typedef struct { int module; DWORD rva; unsigned char signature[16]; } HookSpec;
-static const ModuleSpec MODULES[] = {{L"Taskbar.dll", 0xE8E4B3D1u, 0x308000u, "7c84d8f9ef231898dda10c705d7ef344c14b1e58ddeef4bd9d063429daead2f3"},
-{L"Taskbar.View.dll", 0x6AA3487Au, 0x997000u, "cf7e002533def6628ba121481a703a06fc30accaa5e5cadd1a412f65f2d8ba77"}};
+static const ModuleSpec MODULES[] = {{L"Taskbar.dll"},{L"Taskbar.View.dll"}};
 static const HookSpec HOOK_SLIDE = {0, 0x5D760u, {0x48,0x8B,0xC4,0x55,0x53,0x56,0x57,0x41,0x54,0x41,0x56,0x41,0x57,0x48,0x8D,0x68}};
 static const HookSpec HOOK_EXPAND = {1, 0x870B0u, {0x48,0x89,0x5C,0x24,0x18,0x48,0x89,0x7C,0x24,0x20,0x55,0x48,0x8B,0xEC,0x48,0x83}};
 static const HookSpec HOOK_COLLAPSE = {1, 0x86FF4u, {0x48,0x89,0x5C,0x24,0x18,0x48,0x89,0x7C,0x24,0x20,0x55,0x48,0x8B,0xEC,0x48,0x83}};

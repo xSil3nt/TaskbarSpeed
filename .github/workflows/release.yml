@@ -27,7 +27,7 @@ jobs:
           mkdir -p dist/TaskbarSpeed
           vendor=source/vendor/minhook
           zig cc -target x86_64-windows-gnu -std=c11 -Os -Wall -Wextra -Werror -shared -s -I "$vendor/include" -I source source/hook.c "$vendor/src/buffer.c" "$vendor/src/hook.c" "$vendor/src/trampoline.c" "$vendor/src/hde/hde64.c" -luser32 -o dist/TaskbarSpeed/TaskbarSpeedHook.dll
-          zig cc -target x86_64-windows-gnu -std=c11 -Os -Wall -Wextra -Werror -municode -Wl,--subsystem,windows -s source/launcher.c -lbcrypt -ladvapi32 -luser32 -lshell32 -lole32 -luuid -o dist/TaskbarSpeed/TaskbarSpeed.exe
+          zig cc -target x86_64-windows-gnu -std=c11 -Os -Wall -Wextra -Werror -municode -Wl,--subsystem,windows -s source/launcher.c -ladvapi32 -luser32 -lshell32 -lole32 -luuid -o dist/TaskbarSpeed/TaskbarSpeed.exe
       - name: Package
         shell: bash
         run: |

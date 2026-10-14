@@ -12,7 +12,7 @@ Find **TaskbarSpeed** in Start to open its folder. You can delete the downloaded
 
 No Windhawk, Visual Studio, or extra downloads needed. Setup uses Windows PowerShell. The launcher exits after applying; a small DLL stays inside Explorer.
 
-**Compatibility:** this release targets x64 Windows 11 24H2, build 26100.9550. It checks the taskbar files and stops if they differ. Windows updates may require a new build.
+**Compatibility:** x64 Windows 11. No Windows version or file-hash restriction. It finds the legacy animation function by its code. If that code changes beyond recognition, it leaves the taskbar unchanged. Other builds may work but are not guaranteed.
 
 ## Startup
 

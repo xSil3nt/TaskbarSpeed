@@ -5,7 +5,6 @@
 #include <windows.h>
 #include <shlobj.h>
 #include <tlhelp32.h>
-#include <bcrypt.h>
 #include <stdio.h>
 #include <wchar.h>
 #include <string.h>
@@ -24,21 +23,6 @@ static BOOL module(DWORD pid,const wchar_t *name,MODULEENTRY32W *entry) {
     BOOL found=FALSE;
     if (Module32FirstW(snap,&m)) do { if (_wcsicmp(m.szModule,name)==0) { *entry=m; found=TRUE; break; } } while(Module32NextW(snap,&m));
     CloseHandle(snap); return found;
-}
-static BOOL fileHashMatches(const wchar_t *path,const char *expected) {
-    BOOL ok=FALSE;
-    HANDLE file=CreateFileW(path,GENERIC_READ,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);
-    if (file==INVALID_HANDLE_VALUE) return FALSE;
-    BCRYPT_ALG_HANDLE algorithm=NULL; BCRYPT_HASH_HANDLE hash=NULL;
-    BYTE digest[32],buffer[65536]; DWORD read=0;
-    if (BCryptOpenAlgorithmProvider(&algorithm,BCRYPT_SHA256_ALGORITHM,NULL,0)<0) goto done;
-    if (BCryptCreateHash(algorithm,&hash,NULL,0,NULL,0,0)<0) goto done;
-    for (;;) { if (!ReadFile(file,buffer,sizeof(buffer),&read,NULL)) goto done; if (!read) break; if (BCryptHashData(hash,buffer,read,0)<0) goto done; }
-    if (BCryptFinishHash(hash,digest,32,0)<0) goto done;
-    char actual[65]; for (int i=0;i<32;i++) sprintf(actual+i*2,"%02x",digest[i]);
-    ok=strcmp(actual,expected)==0;
-done:
-    if (hash) BCryptDestroyHash(hash); if (algorithm) BCryptCloseAlgorithmProvider(algorithm,0); CloseHandle(file); return ok;
 }
 static void *remoteFunction(DWORD pid,void *function) {
     HMODULE ownModule;
@@ -112,9 +96,6 @@ static int control(DWORD action) {
     if (!QueryFullProcessImageNameW(process,0,processPath,&pathSize)||!samePath(processPath,expected)) { failure(L"Taskbar owner is not the Windows Explorer executable",0); CloseHandle(process); return 1; }
     if (loaded&&!samePath(plugin.szExePath,dllPath)) { failure(L"A TaskbarSpeed DLL from another folder is already loaded; use that folder's Undo.cmd first",0); CloseHandle(process); return 1; }
     if (!loaded && action!=TBS_APPLY) { swprintf(message,2048,L"TaskbarSpeed is not loaded. Explorer uses its normal taskbar speed."); CloseHandle(process); return 0; }
-    if (action==TBS_APPLY) {
-        for (int i=0;i<2;i++) { MODULEENTRY32W target; if (!module(pid,MODULES[i].name,&target)||!fileHashMatches(target.szExePath,MODULES[i].sha256)) { swprintf(message,2048,L"Windows taskbar files differ from the version this tweak was built for. Nothing was applied.\nRebuild against the updated files before using it again."); CloseHandle(process); return 2; } }
-    }
     if (!loaded) {
         SIZE_T bytes=(wcslen(dllPath)+1)*sizeof(wchar_t),written=0;
         void *remote=VirtualAllocEx(process,NULL,bytes,MEM_COMMIT|MEM_RESERVE,PAGE_READWRITE);
@@ -143,7 +124,7 @@ static int control(DWORD action) {
     BOOL read=ReadProcessMemory(process,remote,&c,sizeof(c),&written)&&written==sizeof(c);
     VirtualFreeEx(process,remote,0,MEM_RELEASE); CloseHandle(process);
     if (!read) { failure(L"Could not read the taskbar hook result",GetLastError()); return 1; }
-    if (c.result||result) { failure(L"Taskbar hook refused the operation",c.result?c.result:result); return 1; }
+    if (c.result||result) { DWORD error=c.result?c.result:result; failure(error==1002?L"Taskbar animation code was not recognized; nothing was hooked":L"Taskbar hook refused the operation",error); return error==1002?2:1; }
     swprintf(message,2048,L"TaskbarSpeed %ls. Launcher exits now.\nShow: %lu%% speed; hide: %lu%% speed.\nExplorer PID: %lu\nHook calls: legacy=%lu, show=%lu, hide=%lu\nModern show duration: %.2f -> %.2f ms\nModern hide duration: %.2f -> %.2f ms\nLegacy show duration: %lu -> %lu ms; last call %.2f ms\nLegacy hide duration: %lu -> %lu ms; last call %.2f ms\n\nIf measured values are zero, hover the taskbar and run Status.cmd again.",c.enabled?L"enabled":L"disabled",c.showPercent,c.hidePercent,pid,c.legacyCalls,c.expandCalls,c.collapseCalls,c.originalShow/10000.0,c.currentShow/10000.0,c.originalHide/10000.0,c.currentHide/10000.0,c.legacyShowOriginalMs,c.legacyShowTargetMs,c.legacyShowElapsedUs/1000.0,c.legacyHideOriginalMs,c.legacyHideTargetMs,c.legacyHideElapsedUs/1000.0);
     wchar_t delayMessage[200];
     swprintf(delayMessage,200,L"\nHide delay: %lu%% speed; timer %lu -> %lu ms (%lu calls).",c.hideDelayPercent,c.originalHideDelayMs,c.currentHideDelayMs,c.hideTimerCalls);
